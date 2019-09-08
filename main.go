@@ -43,8 +43,10 @@ func parseJSON(jsonText []byte) []byte {
 		case curopen:
 			init = append(init, []byte(lookup["struct"])...)
 		case curclose:
+			init = append(init, byte('\n'))
 			init = append(init, c)
 		case dquote:
+			init = append(init, byte('\n'))
 			// read prop
 			prop, indexOut := readProp(jsonText, i+1)
 			// append prop
@@ -54,7 +56,7 @@ func parseJSON(jsonText []byte) []byte {
 			i = indexOut
 
 		case colon:
-			// append colon
+			// append white space
 			init = append(init, wspace)
 			// read the value
 			valueType, indexOut := getValueType(jsonText, i+1)
@@ -62,8 +64,9 @@ func parseJSON(jsonText []byte) []byte {
 			i = indexOut
 			// append the read value and newline
 			init = append(init, valueType...)
-			init = append(init, byte('\n'))
 		case comma:
+		case wspace:
+			continue
 		default:
 			continue
 		}
@@ -91,16 +94,19 @@ func getValueType(jsonText []byte, indexIn int) (string, int) {
 	i := indexIn
 	for ; i < len(jsonText); i++ {
 		c := jsonText[i]
-		if c == comma {
-			break
-		}
-		if c == curclose {
+		switch c {
+		case curopen:
+			return "", indexIn
+		case comma:
+			goto Endfor
+		case curclose:
 			i--
-			break
+			goto Endfor
 		}
 		buf = append(buf, c)
 	}
 
+Endfor:
 	if restring.Match(buf) {
 		return "string", i
 	}
@@ -108,7 +114,6 @@ func getValueType(jsonText []byte, indexIn int) (string, int) {
 		return "float64", i
 	}
 	return "int", i
-
 }
 
 func tesT() {
