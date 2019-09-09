@@ -40,38 +40,44 @@ func readFile(name string) ([]byte, error) {
 	return data, nil
 }
 
-func parseJSON(jsonText []byte, indexIn int) []byte {
-	var nestingLevel int
+func parseJSON(jsonText []byte, indexIn int, nestingLevel int) ([]byte, int) {
 	var goJSON bytes.Buffer
-	goJSON.WriteString(lookup["decl"])
-	for i := 0; i < len(jsonText); i++ {
+	if indexIn == 0 {
+		goJSON.WriteString(lookup["decl"])
+	}
+	i := indexIn
+	for ; i < len(jsonText); i++ {
 		c := jsonText[i]
 		switch c {
+		// in case of curly braces (open), concat struct macro
+		// call the function rec, after execution write to buf
+		// and increas nesting level
 		case curopen:
-			nestingLevel++
 			goJSON.WriteString(lookup["struct"])
+			goJSON.WriteRune('\n')
+			nestingLevel++
+			subJSON, indexOut := parseJSON(jsonText, i+1, nestingLevel)
+			i = indexOut
+			goJSON.Write(subJSON)
+		// in case of curly braces (close), decrease
 		case curclose:
 			nestingLevel--
 			goJSON.WriteRune('\n')
 			goJSON = adjustIndent(goJSON, nestingLevel)
 			goJSON.WriteByte(c)
+			return goJSON.Bytes(), i
+		// in case of double quote, read prop field name, keep new index and write to buf
 		case dquote:
-			goJSON.WriteRune('\n')
-			// read prop
 			prop, indexOut := readProp(jsonText, i+1)
-			// append prop
+			i = indexOut
 			goJSON = adjustIndent(goJSON, nestingLevel)
+
 			goJSON.WriteString(strings.Title(prop))
-			// set counter to continue after the prop
-			i = indexOut
+		// in case of colom, pad with \s, asses value, keep new index and write to buf
 		case colon:
-			// append white space
 			goJSON.WriteByte(wspace)
-			// read the value
 			valueType, indexOut := getValueType(jsonText, i+1)
-			// set counter to continue after the value
 			i = indexOut
-			// append the read value and newline
 			goJSON.WriteString(valueType)
 		case comma:
 		case wspace:
@@ -80,10 +86,11 @@ func parseJSON(jsonText []byte, indexIn int) []byte {
 			continue
 		}
 	}
-	return goJSON.Bytes()
+	return goJSON.Bytes(), i
 }
 
 func adjustIndent(buf bytes.Buffer, nestingLevel int) bytes.Buffer {
+	fmt.Println(nestingLevel)
 	for j := 0; j < nestingLevel; j++ {
 		buf.WriteRune('\t')
 	}
@@ -134,35 +141,35 @@ Endfor:
 	return "int", i
 }
 
-func handleArr(jsonText string, indexIn int) {
-	i := indexIn
-	for ; i < len(jsonText); i++ {
-		c := jsonText[i]
-		switch c {
-		case curopen:
-			return "", indexIn
-		case curclose:
-			i--
-			goto Endfor
-		case bropen:
-			handleArr(jsonText, i)
-		case brclose:
-			goto Endfor
-		case comma:
-			goto Endfor
+// func handleArr(jsonText string, indexIn int) {
+// 	i := indexIn
+// 	for ; i < len(jsonText); i++ {
+// 		c := jsonText[i]
+// 		switch c {
+// 		case curopen:
+// 			return "", indexIn
+// 		case curclose:
+// 			i--
+// 			goto Endfor
+// 		case bropen:
+// 			handleArr(jsonText, i)
+// 		case brclose:
+// 			goto Endfor
+// 		case comma:
+// 			goto Endfor
 
-		}
-		buf = append(buf, c)
-	}
-}
+// 		}
+// 		buf = append(buf, c)
+// 	}
+// }
 
 func parseValue() {}
 
 func main() {
-	data, err := readFile("./test/test.json")
+	data, err := readFile("./test/test_simple.json")
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	fmt.Println(string(parseJSON(data, 0)))
+	s, _ := parseJSON(data, 0, 0)
+	fmt.Println(string(s))
 }
