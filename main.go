@@ -115,8 +115,6 @@ func getValueType(jsonText []byte, indexIn int) (string, int) {
 		case curclose:
 			i--
 			goto Endfor
-		case bropen:
-			handleArr(jsonText, i)
 		case brclose:
 			goto Endfor
 		case comma:
